@@ -30,7 +30,7 @@ button.p{background:#c0392b;color:#fff;border:0}button.s{background:#eee}
 <label style="display:block;margin:8px 0"><input type="checkbox" id="nogrp" style="width:auto"> Evitar que le toque alguien de su mismo grupo familiar (opcional)</label>
 <button class="p" onclick="draw()">🎲 Hacer sorteo</button><div id="out"></div></section>
 <section id="s3">
-<div class="card"><label>Código recibido</label><textarea id="cd" rows="3"></textarea><label>Tu PIN</label><input id="pin" type="password" inputmode="numeric" maxlength="4">
+<div class="card"><label>Enlace o código recibido (puedes pegar el mensaje completo)</label><textarea id="cd" rows="3"></textarea><label>Tu PIN</label><input id="pin" type="password" inputmode="numeric" maxlength="4">
 <button class="p" onclick="reveal()">Ver mi amigo secreto</button></div><div id="res"></div></section>
 </main>
 <script>
@@ -56,6 +56,8 @@ function saveR(){S.r={min:$("rmin").value,max:$("rmax").value,date:$("rdate").va
 function rulesText(){const r=S.r;return `Monto del regalo: de S/ ${r.min} a S/ ${r.max}.`+(r.date?`\nFecha: ${r.date}.`:"")+(r.place?`\nLugar: ${r.place}.`:"")+`\n\n${r.txt}`}
 function perm(){for(let t=0;t<2000;t++){const a=S.p.map((_,i)=>i);for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}
 if(a.every((g,i)=>g!=i&&(!$("nogrp").checked||S.p[g].group!=S.p[i].group)))return a}return null}
+const short=c=>c.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+function clean(t){t=String(t||"");const i=t.indexOf("#c=");if(i>=0)t=t.slice(i+3);const m=t.match(/[A-Za-z0-9+\/_-]{40,}={0,2}/g);if(!m)return"";let c=m.sort((a,b)=>b.length-a.length)[0].replace(/-/g,"+").replace(/_/g,"/").replace(/=+$/,"");while(c.length%4)c+="=";return c}
 const b64=u=>btoa(String.fromCharCode(...u)),unb=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 async function key(pin,salt){const k=await crypto.subtle.importKey("raw",new TextEncoder().encode(pin),"PBKDF2",false,["deriveKey"]);
 return crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:150000,hash:"SHA-256"},k,{name:"AES-GCM",length:256},false,["encrypt","decrypt"])}
@@ -71,15 +73,15 @@ codes.push({id:S.p[i].id,pin,code:await enc({de:S.p[i].name,para:S.p[a[i]].name,
 S.codes=codes;save();showOut()}
 function showOut(){if(!S.codes){$("out").innerHTML="";return}
 const url=location.href.split("#")[0];
-$("out").innerHTML="<p>✅ Sorteo hecho. Envía a cada persona su código. El PIN va aparte por WhatsApp, o se le dice en persona a quien comparte celular.</p>"+S.codes.map(c=>{const p=S.p.find(x=>x.id==c.id);if(!p)return"";const d=dest(p);
-const m1=`🎁 Amigo Secreto Familiar. Hola ${p.name}, este es tu código. Ábrelo en la app (pestaña "Ver mi amigo") junto con tu PIN, que te llega aparte. No lo compartas.\n\n${c.code}`;
+$("out").innerHTML="<p>✅ Sorteo hecho. Envía a cada persona su enlace. El PIN va aparte por WhatsApp, o se le dice en persona a quien comparte celular.</p>"+S.codes.map(c=>{const p=S.p.find(x=>x.id==c.id);if(!p)return"";const d=dest(p);
+const m1=`🎁 Amigo Secreto Familiar. Hola ${p.name}, toca este enlace y escribe tu PIN (te llega aparte). No lo compartas:\n\n${url}#c=${short(c.code)}`;
 const m2=`Tu PIN del amigo secreto, ${p.name}: ${c.pin}`;
-return `<div class="card"><b>${esc(p.name)}</b> → ${d}${p.phone?"":" (celular de su padre/madre)"}<a class="b" target="_blank" href="https://wa.me/${d}?text=${encodeURIComponent(m1)}">1. Enviar código</a>${p.phone?`<a class="b" target="_blank" href="https://wa.me/${d}?text=${encodeURIComponent(m2)}">2. Enviar PIN</a>`:`<button class="s" onclick="this.outerHTML='<div class=big>PIN de ${esc(p.name)}: ${c.pin}</div>'">2. Ver PIN (decírselo en persona)</button>`}</div>`}).join("")}
+return `<div class="card"><b>${esc(p.name)}</b> → ${d}${p.phone?"":" (celular de su padre/madre)"}<a class="b" target="_blank" href="https://wa.me/${d}?text=${encodeURIComponent(m1)}">1. Enviar enlace</a>${p.phone?`<a class="b" target="_blank" href="https://wa.me/${d}?text=${encodeURIComponent(m2)}">2. Enviar PIN</a>`:`<button class="s" onclick="this.outerHTML='<div class=big>PIN de ${esc(p.name)}: ${c.pin}</div>'">2. Ver PIN (decírselo en persona)</button>`}</div>`}).join("")}
 function hide(){$('res').innerHTML='';$('cd').value='';$('pin').value=''}
-async function reveal(){try{const u=unb($("cd").value.replace(/\s/g,"")),pin=$("pin").value;
-const pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:u.slice(16,28)},await key(pin,u.slice(0,16)),u.slice(28));
+async function reveal(){try{const raw=$("cd").value;let u=unb(clean(raw)),pin=$("pin").value.trim();const tryAll=async u=>{const pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:u.slice(16,28)},await key(pin,u.slice(0,16)),u.slice(28));return pt};let pt;try{pt=await tryAll(u)}catch(e){pt=await tryAll(unb(clean(raw.replace(/\s+/g,""))))}
 const o=JSON.parse(new TextDecoder().decode(pt));
 $("res").innerHTML=`<p>Hola ${esc(o.de)}, tu amigo secreto es:</p><div class="big">🎁 ${esc(o.para)}</div><div class="card" style="white-space:pre-wrap">${esc(o.reglas)}</div><button class="s" onclick="hide()">Ocultar</button>`;setTimeout(hide,30000)}
 catch(e){$("res").innerHTML="<div class='warn'>Código o PIN incorrecto.</div>"}}
 render();loadR();
+if(location.hash.startsWith("#c=")){tab(3);$("cd").value=location.hash;$("pin").focus()}
 </script></body></html>
