@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Amigo Secreto Familiar</title>
+<style>
+body{font-family:system-ui,sans-serif;margin:0;background:#fff7f0;color:#222}
+header{background:#c0392b;color:#fff;padding:14px;text-align:center;font-size:20px}
+nav{display:flex}nav button{flex:1;padding:12px;border:0;background:#e8d5c8;font-size:15px}nav button.on{background:#fff;font-weight:bold}
+main{overflow-wrap:anywhere;max-width:640px;margin:auto;padding:14px}section{display:none}section.on{display:block}
+input,select,textarea,button{font-size:16px;padding:9px;margin:4px 0;width:100%;box-sizing:border-box;border-radius:6px;border:1px solid #bbb}
+button.p{background:#c0392b;color:#fff;border:0}button.s{background:#eee}
+.card{background:#fff;border-radius:8px;padding:10px;margin:8px 0;box-shadow:0 1px 3px #0002}
+.warn{background:#fff3cd;padding:8px;border-radius:6px;font-size:14px}a.b{display:block;background:#25d366;color:#fff;text-align:center;padding:10px;border-radius:6px;text-decoration:none;margin:4px 0}
+.big{font-size:24px;text-align:center;padding:16px;background:#e8f8e8;border-radius:8px}
+</style></head><body>
+<header>🎁 Amigo Secreto Familiar</header>
+<nav><button id="t0" class="on" onclick="tab(0)">Participantes</button><button id="t1" onclick="tab(1)">Reglas</button><button id="t2" onclick="tab(2)">Sorteo y envío</button><button id="t3" onclick="tab(3)">Ver mi amigo</button></nav>
+<main>
+<section id="s0" class="on">
+<div class="card"><input id="nm" placeholder="Nombre (ej. Lucía)"><input id="ph" type="tel" placeholder="Celular propio (déjalo vacío si no tiene)">
+<select id="par"><option value="">Si no tiene celular: ¿de quién usa el celular?</option></select>
+<input id="gr" placeholder="Grupo familiar (opcional, solo se usa si activas esa opción en el sorteo)">
+<button class="p" onclick="addP()">Agregar participante</button></div>
+<div id="list"></div></section>
+<section id="s1">
+<div class="card"><label>Monto mínimo (S/)</label><input id="rmin" type="number"><label>Monto máximo (S/)</label><input id="rmax" type="number">
+<label>Fecha del intercambio</label><input id="rdate" placeholder="ej. 24 de diciembre, 9 pm"><label>Lugar</label><input id="rplace">
+<label>Reglas</label><textarea id="rtxt" rows="9"></textarea><button class="p" onclick="saveR()">Guardar reglas</button></div></section>
+<section id="s2">
+<div class="warn">Sorteo aleatorio: nadie se toca a sí mismo. Los resultados no se muestran aquí: cada persona tiene un código cifrado y un PIN propio. Quien organiza guarda los códigos y PINs en este dispositivo, así que el secreto frente a quien organiza es de confianza.</div>
+<label style="display:block;margin:8px 0"><input type="checkbox" id="nogrp" style="width:auto"> Evitar que le toque alguien de su mismo grupo familiar (opcional)</label>
+<button class="p" onclick="draw()">🎲 Hacer sorteo</button><div id="out"></div></section>
+<section id="s3">
+<div class="card"><label>Código recibido</label><textarea id="cd" rows="3"></textarea><label>Tu PIN</label><input id="pin" type="password" inputmode="numeric" maxlength="4">
+<button class="p" onclick="reveal()">Ver mi amigo secreto</button></div><div id="res"></div></section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const DEF={min:50,max:80,date:"",place:"",txt:"1. Cada uno regala solo a la persona que le tocó.\n2. El regalo debe estar dentro del monto indicado.\n3. Mantén el secreto hasta el día del intercambio.\n4. Regalo envuelto y sin nombre del remitente.\n5. Se revela quién es el amigo secreto al entregar.\n6. Si no puedes asistir, entrega tu regalo antes a la persona organizadora.\n7. Un detalle pensado vale más que uno caro."};
+let S=JSON.parse(localStorage.getItem("asf")||"null")||{p:[],r:DEF,codes:null};
+const save=()=>localStorage.setItem("asf",JSON.stringify(S));
+function tab(i){for(let k=0;k<4;k++){$("s"+k).classList.toggle("on",k==i);$("t"+k).classList.toggle("on",k==i)}if(i==1)loadR();if(i==2)showOut()}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+function norm(n){n=String(n).replace(/\D/g,"");return n.length==9?"51"+n:n}
+function dest(p){if(p.phone)return norm(p.phone);const q=S.p.find(x=>x.id==p.par);return q&&q.phone?norm(q.phone):""}
+function addP(){const name=$("nm").value.trim(),phone=$("ph").value.trim(),par=$("par").value;
+if(!name)return alert("Falta el nombre");if(!phone&&!par)return alert("Pon un celular o elige de quién usa el celular");
+if(S.p.some(x=>x.name.toLowerCase()==name.toLowerCase()))return alert("Ya existe ese nombre");
+S.p.push({id:Date.now()+Math.random(),name,phone,par:phone?"":par,group:$("gr").value.trim()||name});S.codes=null;save();
+["nm","ph","gr"].forEach(i=>$(i).value="");$("par").value="";render()}
+function del(id){S.p=S.p.filter(x=>x.id!=id);S.p.forEach(x=>{if(x.par==id)x.par=""});S.codes=null;save();render()}
+function render(){$("par").innerHTML='<option value="">Si no tiene celular: ¿de quién usa el celular?</option>'+S.p.filter(x=>x.phone).map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("");
+$("list").innerHTML=`<p>${S.p.length} participantes</p>`+S.p.map(x=>{const d=x.phone||((S.p.find(y=>y.id==x.par)||{}).name?"celular de "+S.p.find(y=>y.id==x.par).name:"SIN CELULAR");
+return `<div class="card"><b>${esc(x.name)}</b> · ${esc(d)}<br><small>${esc(x.group)}</small><button class="s" onclick="del(${x.id})">Quitar</button></div>`}).join("")}
+function loadR(){$("rmin").value=S.r.min;$("rmax").value=S.r.max;$("rdate").value=S.r.date;$("rplace").value=S.r.place;$("rtxt").value=S.r.txt}
+function saveR(){S.r={min:$("rmin").value,max:$("rmax").value,date:$("rdate").value,place:$("rplace").value,txt:$("rtxt").value};save();alert("Reglas guardadas")}
+function rulesText(){const r=S.r;return `Monto del regalo: de S/ ${r.min} a S/ ${r.max}.`+(r.date?`\nFecha: ${r.date}.`:"")+(r.place?`\nLugar: ${r.place}.`:"")+`\n\n${r.txt}`}
+function perm(){for(let t=0;t<2000;t++){const a=S.p.map((_,i)=>i);for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}
+if(a.every((g,i)=>g!=i&&(!$("nogrp").checked||S.p[g].group!=S.p[i].group)))return a}return null}
+const b64=u=>btoa(String.fromCharCode(...u)),unb=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function key(pin,salt){const k=await crypto.subtle.importKey("raw",new TextEncoder().encode(pin),"PBKDF2",false,["deriveKey"]);
+return crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:150000,hash:"SHA-256"},k,{name:"AES-GCM",length:256},false,["encrypt","decrypt"])}
+async function enc(obj,pin){const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));
+const ct=new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM",iv},await key(pin,salt),new TextEncoder().encode(JSON.stringify(obj))));
+return b64(new Uint8Array([...salt,...iv,...ct]))}
+async function draw(){if(S.p.length<3)return alert("Se necesitan al menos 3 participantes");
+const miss=S.p.filter(x=>!dest(x));if(miss.length)return alert("Sin celular de contacto: "+miss.map(x=>x.name).join(", "));
+if(S.codes&&!confirm("Ya hay un sorteo. ¿Rehacerlo? Los códigos anteriores dejarán de valer."))return;
+const a=perm();if(!a)return alert("No es posible sortear con esas condiciones. Desactiva la opción de grupos familiares o revisa los grupos.");
+const codes=[];for(let i=0;i<S.p.length;i++){const pin=String(crypto.getRandomValues(new Uint32Array(1))[0]%10000).padStart(4,"0");
+codes.push({id:S.p[i].id,pin,code:await enc({de:S.p[i].name,para:S.p[a[i]].name,reglas:rulesText()},pin)})}
+S.codes=codes;save();showOut()}
+function showOut(){if(!S.codes){$("out").innerHTML="";return}
+const url=location.href.split("#")[0];
+$("out").innerHTML="<p>✅ Sorteo hecho. Envía a cada persona su código. El PIN va aparte por WhatsApp, o se le dice en persona a quien comparte celular.</p>"+S.codes.map(c=>{const p=S.p.find(x=>x.id==c.id);if(!p)return"";const d=dest(p);
+const m1=`🎁 Amigo Secreto Familiar. Hola ${p.name}, este es tu código. Ábrelo en la app (pestaña "Ver mi amigo") junto con tu PIN, que te llega aparte. No lo compartas.\n\n${c.code}`;
+const m2=`Tu PIN del amigo secreto, ${p.name}: ${c.pin}`;
+return `<div class="card"><b>${esc(p.name)}</b> → ${d}${p.phone?"":" (celular de su padre/madre)"}<a class="b" target="_blank" href="https://wa.me/${d}?text=${encodeURIComponent(m1)}">1. Enviar código</a>${p.phone?`<a class="b" target="_blank" href="https://wa.me/${d}?text=${encodeURIComponent(m2)}">2. Enviar PIN</a>`:`<button class="s" onclick="this.outerHTML='<div class=big>PIN de ${esc(p.name)}: ${c.pin}</div>'">2. Ver PIN (decírselo en persona)</button>`}</div>`}).join("")}
+function hide(){$('res').innerHTML='';$('cd').value='';$('pin').value=''}
+async function reveal(){try{const u=unb($("cd").value.replace(/\s/g,"")),pin=$("pin").value;
+const pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:u.slice(16,28)},await key(pin,u.slice(0,16)),u.slice(28));
+const o=JSON.parse(new TextDecoder().decode(pt));
+$("res").innerHTML=`<p>Hola ${esc(o.de)}, tu amigo secreto es:</p><div class="big">🎁 ${esc(o.para)}</div><div class="card" style="white-space:pre-wrap">${esc(o.reglas)}</div><button class="s" onclick="hide()">Ocultar</button>`;setTimeout(hide,30000)}
+catch(e){$("res").innerHTML="<div class='warn'>Código o PIN incorrecto.</div>"}}
+render();loadR();
+</script></body></html>
