@@ -53,6 +53,7 @@ $("list").innerHTML=`<p>${S.p.length} participantes</p>`+S.p.map(x=>{const d=x.p
 return `<div class="card"><b>${esc(x.name)}</b> · ${esc(d)}<br><small>${esc(x.group)}</small><button class="s" onclick="del(${x.id})">Quitar</button></div>`}).join("")}
 function loadR(){$("rmin").value=S.r.min;$("rmax").value=S.r.max;$("rdate").value=S.r.date;$("rplace").value=S.r.place;$("rtxt").value=S.r.txt}
 function saveR(){S.r={min:$("rmin").value,max:$("rmax").value,date:$("rdate").value,place:$("rplace").value,txt:$("rtxt").value};save();alert("Reglas guardadas")}
+function rulesShort(){const r=S.r;return `Regalo de S/ ${r.min} a S/ ${r.max}`+(r.date?` · ${r.date}`:"")+(r.place?` · ${r.place}`:"")}
 function rulesText(){const r=S.r;return `Monto del regalo: de S/ ${r.min} a S/ ${r.max}.`+(r.date?`\nFecha: ${r.date}.`:"")+(r.place?`\nLugar: ${r.place}.`:"")+`\n\n${r.txt}`}
 function perm(){for(let t=0;t<2000;t++){const a=S.p.map((_,i)=>i);for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}
 if(a.every((g,i)=>g!=i&&(!$("nogrp").checked||S.p[g].group!=S.p[i].group)))return a}return null}
@@ -69,18 +70,20 @@ const miss=S.p.filter(x=>!dest(x));if(miss.length)return alert("Sin celular de c
 if(S.codes&&!confirm("Ya hay un sorteo. ¿Rehacerlo? Los códigos anteriores dejarán de valer."))return;
 const a=perm();if(!a)return alert("No es posible sortear con esas condiciones. Desactiva la opción de grupos familiares o revisa los grupos.");
 const codes=[];for(let i=0;i<S.p.length;i++){const pin=String(crypto.getRandomValues(new Uint32Array(1))[0]%10000).padStart(4,"0");
-codes.push({id:S.p[i].id,pin,code:await enc({de:S.p[i].name,para:S.p[a[i]].name,reglas:rulesText()},pin)})}
+codes.push({id:S.p[i].id,pin,v:2,code:await enc({de:S.p[i].name,para:S.p[a[i]].name,r:rulesShort()},pin)})}
 S.codes=codes;save();showOut()}
-function showOut(){if(!S.codes){$("out").innerHTML="";return}
+async function dec(code,pin){const u=unb(code);const pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:u.slice(16,28)},await key(pin,u.slice(0,16)),u.slice(28));return JSON.parse(new TextDecoder().decode(pt))}
+async function migrate(){if(!S.codes)return;let ch=false;for(const c of S.codes){if(c.v==2)continue;try{const o=await dec(c.code,c.pin);c.code=await enc({de:o.de,para:o.para,r:rulesShort()},c.pin);c.v=2;ch=true}catch(e){}}if(ch)save()}
+async function showOut(){await migrate();if(!S.codes){$("out").innerHTML="";return}
 const url=location.href.split("#")[0];
 $("out").innerHTML="<p>✅ Sorteo hecho. Envía a cada persona su enlace. El PIN va aparte por WhatsApp, o se le dice en persona a quien comparte celular.</p>"+S.codes.map(c=>{const p=S.p.find(x=>x.id==c.id);if(!p)return"";const d=dest(p);
-const m1=`🎁 Amigo Secreto Familiar. Hola ${p.name}, toca este enlace y escribe tu PIN (te llega aparte). No lo compartas:\n\n${url}#c=${short(c.code)}`;
+const m1=`🎁 Amigo Secreto Familiar. Hola ${p.name}, Estas son las reglas:\n${rulesText()}\n\nToca este enlace y escribe tu PIN (te llega aparte) para ver a quién le regalas. No lo compartas:\n${url}#c=${short(c.code)}`;
 const m2=`Tu PIN del amigo secreto, ${p.name}: ${c.pin}`;
 return `<div class="card"><b>${esc(p.name)}</b> → ${d}${p.phone?"":" (celular de su padre/madre)"}<a class="b" target="_blank" href="https://wa.me/${d}?text=${encodeURIComponent(m1)}">1. Enviar enlace</a>${p.phone?`<a class="b" target="_blank" href="https://wa.me/${d}?text=${encodeURIComponent(m2)}">2. Enviar PIN</a>`:`<button class="s" onclick="this.outerHTML='<div class=big>PIN de ${esc(p.name)}: ${c.pin}</div>'">2. Ver PIN (decírselo en persona)</button>`}</div>`}).join("")}
 function hide(){$('res').innerHTML='';$('cd').value='';$('pin').value=''}
 async function reveal(){try{const raw=$("cd").value;let u=unb(clean(raw)),pin=$("pin").value.trim();const tryAll=async u=>{const pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:u.slice(16,28)},await key(pin,u.slice(0,16)),u.slice(28));return pt};let pt;try{pt=await tryAll(u)}catch(e){pt=await tryAll(unb(clean(raw.replace(/\s+/g,""))))}
 const o=JSON.parse(new TextDecoder().decode(pt));
-$("res").innerHTML=`<p>Hola ${esc(o.de)}, tu amigo secreto es:</p><div class="big">🎁 ${esc(o.para)}</div><div class="card" style="white-space:pre-wrap">${esc(o.reglas)}</div><button class="s" onclick="hide()">Ocultar</button>`;setTimeout(hide,30000)}
+$("res").innerHTML=`<p>Hola ${esc(o.de)}, tu amigo secreto es:</p><div class="big">🎁 ${esc(o.para)}</div><div class="card" style="white-space:pre-wrap">${esc(o.reglas||o.r||"")}${o.reglas?"":"\n(Las reglas completas están en el mensaje de WhatsApp.)"}</div><button class="s" onclick="hide()">Ocultar</button>`;setTimeout(hide,30000)}
 catch(e){$("res").innerHTML="<div class='warn'>Código o PIN incorrecto.</div>"}}
 render();loadR();
 if(location.hash.startsWith("#c=")){tab(3);$("cd").value=location.hash;$("pin").focus()}
