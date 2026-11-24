@@ -77,7 +77,7 @@ async function migrate(){if(!S.codes)return;let ch=false;for(const c of S.codes)
 async function showOut(){await migrate();if(!S.codes){$("out").innerHTML="";return}
 const url=location.href.split("#")[0];
 $("out").innerHTML="<p>✅ Sorteo hecho. Envía a cada persona su enlace. El PIN va aparte por WhatsApp, o se le dice en persona a quien comparte celular.</p>"+S.codes.map(c=>{const p=S.p.find(x=>x.id==c.id);if(!p)return"";const d=dest(p);
-const m1=`🎁 Amigo Secreto Familiar. Hola ${p.name}, Estas son las reglas:\n${rulesText()}\n\nToca este enlace y escribe tu PIN (te llega aparte) para ver a quién le regalas. No lo compartas:\n${url}#c=${short(c.code)}`;
+const m1=`🎁 Amigo Secreto Familiar. Hola ${p.name}.\n\nReglas:\n${rulesText()}\n\nToca este enlace y escribe tu PIN (te llega aparte) para ver a quién le regalas. No lo compartas:\n${url}#c=${short(c.code)}`;
 const m2=`Tu PIN del amigo secreto, ${p.name}: ${c.pin}`;
 return `<div class="card"><b>${esc(p.name)}</b> → ${d}${p.phone?"":" (celular de su padre/madre)"}<a class="b" target="_blank" href="https://wa.me/${d}?text=${encodeURIComponent(m1)}">1. Enviar enlace</a>${p.phone?`<a class="b" target="_blank" href="https://wa.me/${d}?text=${encodeURIComponent(m2)}">2. Enviar PIN</a>`:`<button class="s" onclick="this.outerHTML='<div class=big>PIN de ${esc(p.name)}: ${c.pin}</div>'">2. Ver PIN (decírselo en persona)</button>`}</div>`}).join("")}
 function hide(){$('res').innerHTML='';$('cd').value='';$('pin').value=''}
