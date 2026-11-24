@@ -36,6 +36,7 @@ button.p{background:#c0392b;color:#fff;border:0}button.s{background:#eee}
 <script>
 const $=id=>document.getElementById(id);
 const DEF={min:50,max:80,date:"",place:"",txt:"1. Cada uno regala solo a la persona que le tocó.\n2. El regalo debe estar dentro del monto indicado.\n3. Mantén el secreto hasta el día del intercambio.\n4. Regalo envuelto y sin nombre del remitente.\n5. Se revela quién es el amigo secreto al entregar.\n6. Si no puedes asistir, entrega tu regalo antes a la persona organizadora.\n7. Un detalle pensado vale más que uno caro."};
+const RESET_MSG="Ya hay un sorteo hecho. Si continúas, la app olvida las asignaciones actuales y harás un sorteo nuevo. Los enlaces y PINs que ya enviaste NO se anulan: seguirán mostrando la asignación anterior. Si ya los compartiste, avisa a todos que ignoren los anteriores y envía enlaces nuevos a todos. ¿Continuar?";
 let S=JSON.parse(localStorage.getItem("asf")||"null")||{p:[],r:DEF,codes:null};
 const save=()=>localStorage.setItem("asf",JSON.stringify(S));
 function tab(i){for(let k=0;k<4;k++){$("s"+k).classList.toggle("on",k==i);$("t"+k).classList.toggle("on",k==i)}if(i==1)loadR();if(i==2)showOut()}
@@ -45,9 +46,9 @@ function dest(p){if(p.phone)return norm(p.phone);const q=S.p.find(x=>x.id==p.par
 function addP(){const name=$("nm").value.trim(),phone=$("ph").value.trim(),par=$("par").value;
 if(!name)return alert("Falta el nombre");if(!phone&&!par)return alert("Pon un celular o elige de quién usa el celular");
 if(S.p.some(x=>x.name.toLowerCase()==name.toLowerCase()))return alert("Ya existe ese nombre");
-S.p.push({id:Date.now()+Math.random(),name,phone,par:phone?"":par,group:$("gr").value.trim()||name});S.codes=null;save();
+if(S.codes&&!confirm(RESET_MSG))return;S.p.push({id:Date.now()+Math.random(),name,phone,par:phone?"":par,group:$("gr").value.trim()||name});S.codes=null;save();
 ["nm","ph","gr"].forEach(i=>$(i).value="");$("par").value="";render()}
-function del(id){S.p=S.p.filter(x=>x.id!=id);S.p.forEach(x=>{if(x.par==id)x.par=""});S.codes=null;save();render()}
+function del(id){if(S.codes&&!confirm(RESET_MSG))return;S.p=S.p.filter(x=>x.id!=id);S.p.forEach(x=>{if(x.par==id)x.par=""});S.codes=null;save();render()}
 function render(){$("par").innerHTML='<option value="">Si no tiene celular: ¿de quién usa el celular?</option>'+S.p.filter(x=>x.phone).map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("");
 $("list").innerHTML=`<p>${S.p.length} participantes</p>`+S.p.map(x=>{const d=x.phone||((S.p.find(y=>y.id==x.par)||{}).name?"celular de "+S.p.find(y=>y.id==x.par).name:"SIN CELULAR");
 return `<div class="card"><b>${esc(x.name)}</b> · ${esc(d)}<br><small>${esc(x.group)}</small><button class="s" onclick="del(${x.id})">Quitar</button></div>`}).join("")}
@@ -67,7 +68,7 @@ const ct=new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM",iv},await ke
 return b64(new Uint8Array([...salt,...iv,...ct]))}
 async function draw(){if(S.p.length<3)return alert("Se necesitan al menos 3 participantes");
 const miss=S.p.filter(x=>!dest(x));if(miss.length)return alert("Sin celular de contacto: "+miss.map(x=>x.name).join(", "));
-if(S.codes&&!confirm("Ya hay un sorteo. ¿Rehacerlo? Los códigos anteriores dejarán de valer."))return;
+if(S.codes&&!confirm(RESET_MSG))return;
 const a=perm();if(!a)return alert("No es posible sortear con esas condiciones. Desactiva la opción de grupos familiares o revisa los grupos.");
 const codes=[];for(let i=0;i<S.p.length;i++){const pin=String(crypto.getRandomValues(new Uint32Array(1))[0]%10000).padStart(4,"0");
 codes.push({id:S.p[i].id,pin,v:2,code:await enc({de:S.p[i].name,para:S.p[a[i]].name,r:rulesShort()},pin)})}
